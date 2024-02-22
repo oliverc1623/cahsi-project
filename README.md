@@ -12,7 +12,9 @@ Hours
 
 ## 02/22/2024:
 - start: 9:00am
-
+- end: 11:00am
+- start 2:30pm
+- end 4:00pm
 
 ### Questions:
 - Why are the MedSAM pretrained parameters a lot smaller compared to SA's?
