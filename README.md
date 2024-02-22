@@ -21,4 +21,11 @@ Hours
 - Why are text prompts for medsam and sam not publically or readily available?
 - Why did Adapter(H) increase in validation accruracy as trainable parameters increased?
     - Why are the other algorithms performing poorly? Are they overfitting?
-- Since we've been tasked to read SAM, MedSAM, and LoRA are you going to try to leverage LoRA for efficient transfer learning of segmentation models? 
+- Since we've been tasked to read SAM, MedSAM, and LoRA are you going to try to leverage LoRA for efficient transfer learning of segmentation models?
+
+### Weekly meeting: 
+TODO: 
+- Read efficientSAM, CLIP
+- Run examples with efficientSAM
+- LoRA: understand code, COLAB pro can get by
+- Github link on slack https://github.com/HUANGLIZI/LViT?tab=readme-ov-file
