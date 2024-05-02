@@ -119,7 +119,8 @@ def train_model(model, criterion, optimizer, train_dataloader, validation_datalo
     mean_epoch_val_losses = []
     prev_val_loss = np.inf
     
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = nn.DataParallel(model, device_ids=[0, 1])
     model.to(device)
     
     model.train()
@@ -169,11 +170,11 @@ def train_model(model, criterion, optimizer, train_dataloader, validation_datalo
             # save model if better
             if mean_val_loss < prev_val_loss:
                 prev_val_loss = mean_val_loss
-                model.save_pretrained("checkpoints")
+                model.module.save_pretrained("/home/../pvcvolume/sam_checkpoints/checkpoints")
 
 def main():
     # Load raw data files
-    subset_size = 100
+    subset_size = 7145
     train_filelist_xray = sorted(glob.glob('datasets/QaTa-COV19/QaTa-COV19-v2/Train Set/Images/*.png'), key=numericalSort)
     x_train = [process_data(file_xray) for file_xray in train_filelist_xray[:subset_size]]
     masks = sorted(glob.glob('datasets/QaTa-COV19/QaTa-COV19-v2/Train Set/Ground-truths/*.png'), key=numericalSort)
