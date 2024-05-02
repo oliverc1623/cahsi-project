@@ -114,6 +114,7 @@ def apply_lora(model):
 def train_model(model, criterion, optimizer, train_dataloader, validation_dataloader, num_epochs=25):
     mean_epoch_losses = []
     mean_epoch_val_losses = []
+    prev_val_loss = np.inf
     
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     model.to(device)
@@ -162,6 +163,10 @@ def train_model(model, criterion, optimizer, train_dataloader, validation_datalo
             print(f'Validation loss: {mean_val_loss.item()}')
             mean_epoch_val_losses.append(mean_val_loss.item())
 
+            # save model if better
+            if mean_val_loss < prev_val_loss:
+                prev_val_loss = mean_val_loss
+                model.save_pretrained("checkpoints")
 
 def main():
     # Load raw data files
@@ -208,7 +213,7 @@ def main():
     # train model
     optimizer = Adam(model.parameters(), lr=1e-5, weight_decay=0)
     seg_loss = monai.losses.DiceCELoss(sigmoid=True, squared_pred=True, reduction='mean')
-    train_model(model, seg_loss, optimizer, train_dataloader, validation_dataloader, num_epochs=10)
+    train_model(model, seg_loss, optimizer, train_dataloader, validation_dataloader, num_epochs=2)
     
 if __name__ == "__main__":
     main()
