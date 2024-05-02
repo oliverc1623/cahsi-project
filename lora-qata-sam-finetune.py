@@ -34,28 +34,17 @@ def create_dataset(images, labels):
     print("Creating Dataset from dict")
     dataset = Dataset.from_dict({"image": images,
                                 "label": labels})
-    dataset = dataset.cast_column("image", Image())
-    dataset = dataset.cast_column("label", Image())
     return dataset
 
 def process_data(image_file, mask=False):
     image = PIL.Image.open(image_file)
     if not mask:
         image = image.convert("RGB")
+    else:
+        image = image.convert("L")
+        image = image.point(lambda p: p > 0 and 1)
     image = image.resize((256, 256), PIL.Image.BILINEAR)
-    return np.array(image
-
-def load_data(file_paths, is_mask=False):
-    # Load and process images/masks asynchronously
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        # Submit all jobs to the executor
-        future_to_file = {executor.submit(process_data, file, is_mask): file for file in file_paths}
-        results = []
-        for future in as_completed(future_to_file):
-            res = future.result()
-            if res is not None:
-                results.append(res)
-        return np.array(results)
+    return image
 
 def show_mask(mask, ax, random_color=False):
     if random_color:
@@ -186,12 +175,9 @@ def main():
     # Load raw data files
     subset_size = 100
     train_filelist_xray = sorted(glob.glob('datasets/QaTa-COV19/QaTa-COV19-v2/Train Set/Images/*.png'), key=numericalSort)
+    x_train = [process_data(file_xray) for file_xray in train_filelist_xray[:subset_size]]
     masks = sorted(glob.glob('datasets/QaTa-COV19/QaTa-COV19-v2/Train Set/Ground-truths/*.png'), key=numericalSort)
-    x_train = load_data(train_filelist_xray[:subset_size], is_mask=False)
-    y_train = load_data(masks[:subset_size], is_mask=True)
-    y_train[y_train > 0] = 1 
-    print(f"Train data shape: {x_train.shape}")
-    print(f"Labels (masks) data shape: {y_train.shape}")
+    y_train = [process_data(m, mask=True) for m in masks[:subset_size]]
     
     # create dictionary image, mask dataset
     dataset = create_dataset(x_train, y_train)
