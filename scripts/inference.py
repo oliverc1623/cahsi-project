@@ -96,7 +96,7 @@ def main():
 
     # Load model
     processor = SamProcessor.from_pretrained("facebook/sam-vit-base")
-    model = SamProcessor.from_pretrained("/home/../pvcvolume/sam_checkpoints")
+    model = SamProcessor.from_pretrained("/home/../pvcvolume/sam_checkpoints/")
     
     # Inference on test set
     test_ious = []
