@@ -34,8 +34,8 @@ def numericalSort(value):
 def create_dataset(images, labels):
     dataset = datasets.Dataset.from_dict({"image": images,
                                 "label": labels})
-    dataset = dataset.cast_column("image", Image())
-    dataset = dataset.cast_column("label", Image())
+    dataset = dataset.cast_column("image", datasets.Image())
+    dataset = dataset.cast_column("label", datasets.Image())
     return dataset
 
 def process_data(image_file, mask=False):
