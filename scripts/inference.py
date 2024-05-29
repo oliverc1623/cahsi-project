@@ -16,10 +16,7 @@ import loralib as lora
 from tqdm import tqdm
 from statistics import mean
 import monai
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model = nn.DataParallel(model, device_ids=[0, 1])
-model.to(device)
+device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 numbers = re.compile(r'(\d+)')
 def numericalSort(value):
@@ -59,7 +56,6 @@ def get_bounding_box(ground_truth_map):
     y_max = min(H, y_max + np.random.randint(0, 20))
     bbox = [x_min, y_min, x_max, y_max]
     return bbox
-
 
 def calculateIoU(gtMask, predMask):
         # Calculate the true positives,
