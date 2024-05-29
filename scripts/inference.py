@@ -7,15 +7,22 @@ import PIL
 import cv2
 import matplotlib.pyplot as plt
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import torch
+from torch.nn.functional import threshold, normalize
+from torch.optim import Adam
 import torch.nn as nn
+from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data.sampler import SubsetRandomSampler
+
 from transformers import SamProcessor
-from datasets import Dataset, Image, load_dataset, Features, Array3D, ClassLabel
+import datasets
 from transformers import SamModel 
 import loralib as lora
 from tqdm import tqdm
 from statistics import mean
 import monai
+numbers = re.compile(r'(\d+)')
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 numbers = re.compile(r'(\d+)')
@@ -23,6 +30,12 @@ def numericalSort(value):
     parts = numbers.split(value)
     parts[1::2] = map(int, parts[1::2])
     return parts
+
+def create_dataset(images, labels):
+    print("Creating Dataset from dict")
+    dataset = datasets.Dataset.from_dict({"image": images,
+                                "label": labels})
+    return dataset
 
 def process_data(image_file, mask=False):
     image = PIL.Image.open(image_file)
@@ -33,13 +46,6 @@ def process_data(image_file, mask=False):
         image = image.point(lambda p: p > 0 and 1)
     image = image.resize((256, 256), PIL.Image.BILINEAR)
     return image
-    
-def create_dataset(images, labels):
-    dataset = Dataset.from_dict({"image": images,
-                                "label": labels})
-    dataset = dataset.cast_column("image", Image())
-    dataset = dataset.cast_column("label", Image())
-    return dataset
 
 def get_bounding_box(ground_truth_map):
     # get bounding box from mask
