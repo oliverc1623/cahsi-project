@@ -7,7 +7,8 @@ import PIL
 import cv2
 import matplotlib.pyplot as plt
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
+import torch
+import torch.nn as nn
 from transformers import SamProcessor
 from datasets import Dataset, Image, load_dataset, Features, Array3D, ClassLabel
 from transformers import SamModel 
@@ -15,6 +16,10 @@ import loralib as lora
 from tqdm import tqdm
 from statistics import mean
 import monai
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model = nn.DataParallel(model, device_ids=[0, 1])
+model.to(device)
 
 numbers = re.compile(r'(\d+)')
 def numericalSort(value):
@@ -38,6 +43,23 @@ def create_dataset(images, labels):
     dataset = dataset.cast_column("image", Image())
     dataset = dataset.cast_column("label", Image())
     return dataset
+
+def get_bounding_box(ground_truth_map):
+    # get bounding box from mask
+    if len(ground_truth_map) == 2:
+        ground_truth_map = ground_truth_map[0]
+    y_indices, x_indices = np.where(ground_truth_map > 0)
+    x_min, x_max = np.min(x_indices), np.max(x_indices)
+    y_min, y_max = np.min(y_indices), np.max(y_indices)
+    # add perturbation to bounding box coordinates
+    H, W = ground_truth_map.shape
+    x_min = max(0, x_min - np.random.randint(0, 20))
+    x_max = min(W, x_max + np.random.randint(0, 20))
+    y_min = max(0, y_min - np.random.randint(0, 20))
+    y_max = min(H, y_max + np.random.randint(0, 20))
+    bbox = [x_min, y_min, x_max, y_max]
+    return bbox
+
 
 def calculateIoU(gtMask, predMask):
         # Calculate the true positives,
@@ -70,6 +92,7 @@ def main():
     test_dataset = create_dataset(x_test, y_test)
 
     # Load model
+    processor = SamProcessor.from_pretrained("facebook/sam-vit-base")
     model = SamProcessor.from_pretrained("/home/../pvcvolume/sam_checkpoints")
     
     # Inference on test set
