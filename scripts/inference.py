@@ -15,8 +15,23 @@ import loralib as lora
 from tqdm import tqdm
 from statistics import mean
 import monai
-numbers = re.compile(r'(\d+)')
 
+numbers = re.compile(r'(\d+)')
+def numericalSort(value):
+    parts = numbers.split(value)
+    parts[1::2] = map(int, parts[1::2])
+    return parts
+
+def process_data(image_file, mask=False):
+    image = PIL.Image.open(image_file)
+    if not mask:
+        image = image.convert("RGB")
+    else:
+        image = image.convert("L")
+        image = image.point(lambda p: p > 0 and 1)
+    image = image.resize((256, 256), PIL.Image.BILINEAR)
+    return image
+    
 def create_dataset(images, labels):
     dataset = Dataset.from_dict({"image": images,
                                 "label": labels})
@@ -43,7 +58,6 @@ def calculateIoU(gtMask, predMask):
         return iou
 
 def main():
-    
     ## Load Test Set
     subset_size = 100
     test_filelist_xray = sorted(glob.glob('../QaTa-COV19/QaTa-COV19-v2/Test Set/Images/*.png'))
