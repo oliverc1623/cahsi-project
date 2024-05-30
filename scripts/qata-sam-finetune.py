@@ -122,8 +122,8 @@ def train_model(model, criterion, optimizer, train_dataloader, validation_datalo
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = nn.DataParallel(model, device_ids=[0, 1])
     model.to(device)
-    
     model.train()
+
     for epoch in range(num_epochs):
         epoch_losses = []
         # Training phase
@@ -167,10 +167,11 @@ def train_model(model, criterion, optimizer, train_dataloader, validation_datalo
             print(f'Validation loss: {mean_val_loss.item()}')
             mean_epoch_val_losses.append(mean_val_loss.item())
 
-            # save model if better
-            if mean_val_loss < prev_val_loss:
-                prev_val_loss = mean_val_loss
-                torch.save(model.state_dict(), "/home/../pvcvolume/sam_checkpoints/baseline-sam.pth")
+        # save model if better
+        if mean_val_loss < prev_val_loss:
+            prev_val_loss = mean_val_loss
+            torch.save(model.state_dict(), "/home/../pvcvolume/sam_checkpoints/baseline-sam.pth")
+        model.train()
 
 def main():
     # Load raw data files
@@ -200,8 +201,8 @@ def main():
     model = SamModel.from_pretrained("facebook/sam-vit-base").to("cuda:0")
     # only finetune vision encoder and mask decoder
     for name, param in model.named_parameters():
-      if name.startswith("prompt_encoder"):
-        param.requires_grad_(False)
+        if name.startswith("prompt_encoder"):
+            param.requires_grad_(False)
     sam_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"SAM total params: {sam_total_params}")
     

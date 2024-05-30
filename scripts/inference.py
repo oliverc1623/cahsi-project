@@ -15,15 +15,14 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset, random_split
 from torch.utils.data.sampler import SubsetRandomSampler
 
-from transformers import SamProcessor
+from transformers import SamModel, SamConfig, SamProcessor
 import datasets
-from transformers import SamModel 
 import loralib as lora
 from tqdm import tqdm
 from statistics import mean
 import monai
 numbers = re.compile(r'(\d+)')
-device = "cuda:0" if torch.cuda.is_available() else "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 numbers = re.compile(r'(\d+)')
 def numericalSort(value):
@@ -95,16 +94,22 @@ def main():
     test_dataset = create_dataset(x_test, y_test)
 
     # Load model
-    processor = SamProcessor.from_pretrained("/home/../pvcvolume/sam_checkpoints/")
-    model = SamProcessor.from_pretrained("/home/../pvcvolume/sam_checkpoints/")
-    
+    model_config = SamConfig.from_pretrained("facebook/sam-vit-base")
+    processor = SamProcessor.from_pretrained("facebook/sam-vit-base") 
+    model = SamModel(config=model_config)
+    model = nn.DataParallel(model, device_ids=[0, 1])
+    model.to(device)
+    model.load_state_dict(torch.load("/home/../pvcvolume/sam_checkpoints/baseline-sam.pth"))
+
     # Inference on test set
     test_ious = []
     for idx, sample in enumerate(test_dataset):
         ground_truth_mask = np.array(sample["label"])
         prompt = get_bounding_box(ground_truth_mask)        
         image = sample["image"]
-        inputs = processor(image, input_boxes=[[prompt]], return_tensors="pt").to(device)
+        inputs = processor(image, input_boxes=[[prompt]], return_tensors="pt")
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+        model.eval()
         # forward pass
         with torch.no_grad():
             outputs = model(**inputs, multimask_output=False)
