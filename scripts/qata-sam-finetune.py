@@ -170,14 +170,14 @@ def train_model(model, criterion, optimizer, train_dataloader, validation_datalo
             # save model if better
             if mean_val_loss < prev_val_loss:
                 prev_val_loss = mean_val_loss
-                model.module.save_pretrained("test_checkpoints")
+                torch.save(model.state_dict(), "/home/../pvcvolume/sam_checkpoints/baseline-sam.pth")
 
 def main():
     # Load raw data files
     subset_size = 100
-    train_filelist_xray = sorted(glob.glob('../datasets/QaTa-COV19/QaTa-COV19-v2/Train Set/Images/*.png'), key=numericalSort)
+    train_filelist_xray = sorted(glob.glob('../QaTa-COV19/QaTa-COV19-v2/Train Set/Images/*.png'), key=numericalSort)
     x_train = [process_data(file_xray) for file_xray in train_filelist_xray[:subset_size]]
-    masks = sorted(glob.glob('../datasets/QaTa-COV19/QaTa-COV19-v2/Train Set/Ground-truths/*.png'), key=numericalSort)
+    masks = sorted(glob.glob('../QaTa-COV19/QaTa-COV19-v2/Train Set/Ground-truths/*.png'), key=numericalSort)
     y_train = [process_data(m, mask=True) for m in masks[:subset_size]]
     
     # create dictionary image, mask dataset
