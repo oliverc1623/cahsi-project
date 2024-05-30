@@ -1,11 +1,8 @@
 import re
 import glob
 import numpy as np
-import matplotlib.pyplot as plt
 import PIL.Image
 import PIL
-import cv2
-import matplotlib.pyplot as plt
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import torch
@@ -81,6 +78,35 @@ def calculateIoU(gtMask, predMask):
         iou = tp / (tp + fp + fn)
         return iou
 
+def apply_lora(model):
+    # Mask decoder
+    for layer in model.mask_decoder.transformer.layers:
+        # self_attn
+        layer.self_attn.q_proj = lora.Linear(256, 256, r=8)
+        layer.self_attn.k_proj = lora.Linear(256, 256, r=8)
+        layer.self_attn.v_proj = lora.Linear(256, 256, r=8)
+        # cross attn token to img
+        layer.cross_attn_token_to_image.q_proj = lora.Linear(256, 128, r=8)
+        layer.cross_attn_token_to_image.k_proj = lora.Linear(256, 128, r=8)
+        layer.cross_attn_token_to_image.v_proj = lora.Linear(256, 128, r=8)
+        # mlp
+        layer.mlp.lin1 = lora.Linear(256, 2048, r=8)
+        layer.mlp.lin2 = lora.Linear(2048, 256, r=8)
+        # cross attn img to token
+        layer.cross_attn_image_to_token.q_proj = lora.Linear(256, 128, r=8)
+        layer.cross_attn_image_to_token.k_proj = lora.Linear(256, 128, r=8)
+        layer.cross_attn_image_to_token.v_proj = lora.Linear(256, 128, r=8)
+    model.mask_decoder.transformer.final_attn_token_to_image.q_proj = lora.Linear(256, 128, r=8)
+    model.mask_decoder.transformer.final_attn_token_to_image.k_proj = lora.Linear(256, 128, r=8)
+    model.mask_decoder.transformer.final_attn_token_to_image.v_proj = lora.Linear(256, 128, r=8)
+    # Vision Encoder
+    for layer in model.vision_encoder.layers:
+        layer.attn.qkv = lora.MergedLinear(768, 3*768, r=8, enable_lora=[True, True, True])
+        layer.mlp.lin1 = lora.Linear(768, 3072, r=8)
+        layer.mlp.lin2 = lora.Linear(3072, 768, r=8)
+    model.vision_encoder.neck.conv1 = lora.Conv2d(768, 256, kernel_size=1, r=8)
+    model.vision_encoder.neck.conv2 = lora.Conv2d(256, 256, kernel_size=1, r=8)
+
 def main():
     ## Load Test Set
     subset_size = 100
@@ -97,9 +123,10 @@ def main():
     model_config = SamConfig.from_pretrained("facebook/sam-vit-base")
     processor = SamProcessor.from_pretrained("facebook/sam-vit-base") 
     model = SamModel(config=model_config)
+    apply_lora(model)
     model = nn.DataParallel(model, device_ids=[0, 1])
     model.to(device)
-    model.load_state_dict(torch.load("/home/../pvcvolume/sam_checkpoints/baseline-sam.pth"))
+    model.load_state_dict(torch.load("../lora-sam.pth"))
 
     # Inference on test set
     test_ious = []

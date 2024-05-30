@@ -1,7 +1,6 @@
 import re
 import glob
 import numpy as np
-import matplotlib.pyplot as plt
 import PIL.Image
 import PIL
 import cv2
@@ -17,8 +16,8 @@ from torch.utils.data import Dataset, random_split
 from torch.utils.data.sampler import SubsetRandomSampler
 
 from transformers import SamProcessor
-from datasets import Dataset, Image, load_dataset, Features, Array3D, ClassLabel
-from transformers import SamModel 
+import datasets
+from transformers import SamModel
 import loralib as lora
 from tqdm import tqdm
 from statistics import mean
@@ -32,7 +31,7 @@ def numericalSort(value):
 
 def create_dataset(images, labels):
     print("Creating Dataset from dict")
-    dataset = Dataset.from_dict({"image": images,
+    dataset = datasets.Dataset.from_dict({"image": images,
                                 "label": labels})
     return dataset
 
@@ -118,12 +117,13 @@ def train_model(model, criterion, optimizer, train_dataloader, validation_datalo
     mean_epoch_losses = []
     mean_epoch_val_losses = []
     prev_val_loss = np.inf
-    
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = nn.DataParallel(model, device_ids=[0, 1])
     model.to(device)
-    
+    lora.mark_only_lora_as_trainable(model, bias='all')
     model.train()
+
     for epoch in range(num_epochs):
         epoch_losses = []
         # Training phase
@@ -148,7 +148,6 @@ def train_model(model, criterion, optimizer, train_dataloader, validation_datalo
         print(f'Training loss: {mean_loss}')
         mean_epoch_losses.append(mean_loss)
         # Validation phase
-        print("Validating")
         model.eval()
         with torch.no_grad():
             epoch_val_losses = []
@@ -167,54 +166,53 @@ def train_model(model, criterion, optimizer, train_dataloader, validation_datalo
             print(f'Validation loss: {mean_val_loss.item()}')
             mean_epoch_val_losses.append(mean_val_loss.item())
 
-            # save model if better
-            if mean_val_loss < prev_val_loss:
-                prev_val_loss = mean_val_loss
-                model.module.save_pretrained("/home/../pvcvolume/sam_checkpoints/checkpoints")
+        # save model if better
+        if mean_val_loss < prev_val_loss:
+            prev_val_loss = mean_val_loss
+            torch.save(model.state_dict(), "../lora-sam.pth")
+        model.train()
 
 def main():
     # Load raw data files
     subset_size = 7145
-    train_filelist_xray = sorted(glob.glob('datasets/QaTa-COV19/QaTa-COV19-v2/Train Set/Images/*.png'), key=numericalSort)
+    train_filelist_xray = sorted(glob.glob('../QaTa-COV19/QaTa-COV19-v2/Train Set/Images/*.png'), key=numericalSort)
     x_train = [process_data(file_xray) for file_xray in train_filelist_xray[:subset_size]]
-    masks = sorted(glob.glob('datasets/QaTa-COV19/QaTa-COV19-v2/Train Set/Ground-truths/*.png'), key=numericalSort)
+    masks = sorted(glob.glob('../QaTa-COV19/QaTa-COV19-v2/Train Set/Ground-truths/*.png'), key=numericalSort)
     y_train = [process_data(m, mask=True) for m in masks[:subset_size]]
-    
+
     # create dictionary image, mask dataset
     dataset = create_dataset(x_train, y_train)
     print(dataset)
-    
+
     # Fine-tuning
     processor = SamProcessor.from_pretrained("facebook/sam-vit-base")
-    
+
     # Initialize Dataset and split into train and validation dataloaders
     dataset = SAMDataset(dataset=dataset, processor=processor)
     dataset_size = len(dataset)
     train_size = int(dataset_size * 0.8)  # 80% for training
     validation_size = dataset_size - train_size  # 20% for validation
     train_dataset, validation_dataset = random_split(dataset, [train_size, validation_size])
-    train_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True)
-    validation_dataloader = DataLoader(validation_dataset, batch_size=2, shuffle=False)
-    
+    train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=8)
+    validation_dataloader = DataLoader(validation_dataset, batch_size=4, shuffle=False, num_workers=8)
+
     # Load baseline model
     model = SamModel.from_pretrained("facebook/sam-vit-base").to("cuda:0")
     # only finetune vision encoder and mask decoder
     for name, param in model.named_parameters():
-      if name.startswith("prompt_encoder"):
-        param.requires_grad_(False)
+        if name.startswith("prompt_encoder"):
+            param.requires_grad_(False)
     sam_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"SAM total params: {sam_total_params}")
-    
-    # Apply LoRA
+
     apply_lora(model)
-    lora_sam_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"LoRA-SAM total params: {lora_sam_total_params}")
-    print(f"Percentage of params reduced: {(sam_total_params-lora_sam_total_params) / sam_total_params}")
-    
+    sam_lora_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"SAM + LoRA total params: {sam_lora_total_params}")
+
     # train model
-    optimizer = Adam(model.parameters(), lr=1e-5, weight_decay=0)
+    optimizer = Adam(model.parameters(), lr=0.001, weight_decay=0)
     seg_loss = monai.losses.DiceCELoss(sigmoid=True, squared_pred=True, reduction='mean')
-    train_model(model, seg_loss, optimizer, train_dataloader, validation_dataloader, num_epochs=2)
-    
+    train_model(model, seg_loss, optimizer, train_dataloader, validation_dataloader, num_epochs=10)
+
 if __name__ == "__main__":
     main()
