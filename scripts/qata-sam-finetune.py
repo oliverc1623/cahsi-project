@@ -114,13 +114,13 @@ def apply_lora(model):
     model.vision_encoder.neck.conv1 = lora.Conv2d(768, 256, kernel_size=1, r=8)
     model.vision_encoder.neck.conv2 = lora.Conv2d(256, 256, kernel_size=1, r=8)
 
-def train_model(model, criterion, optimizer, train_dataloader, validation_dataloader, num_epochs=25):
+def train_model(model, criterion, optimizer, train_dataloader, num_epochs=25):
     mean_epoch_losses = []
     mean_epoch_val_losses = []
     prev_val_loss = np.inf
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = nn.DataParallel(model, device_ids=[0, 1])
+    model = nn.DataParallel(model, device_ids=[0, 1, 2, 3])
     model.to(device)
     model.train()
 
@@ -147,38 +147,19 @@ def train_model(model, criterion, optimizer, train_dataloader, validation_datalo
         mean_loss = mean(epoch_losses)
         print(f'Training loss: {mean_loss}')
         mean_epoch_losses.append(mean_loss)
-        # Validation phase
-        print("Validating")
-        model.eval()
-        with torch.no_grad():
-            epoch_val_losses = []
-            for batch in validation_dataloader:  # Make sure to use your validation DataLoader
-                # forward pass
-                outputs = model(pixel_values=batch["pixel_values"].to(device),
-                                input_boxes=batch["input_boxes"].to(device),
-                                multimask_output=False)
-                # compute loss
-                predicted_masks = outputs.pred_masks.squeeze(1)
-                ground_truth_masks = batch["ground_truth_mask"].float().to(device)
-                val_loss = criterion(predicted_masks, ground_truth_masks.unsqueeze(1))
-                epoch_val_losses.append(val_loss.item())
-            # print statistics
-            mean_val_loss = torch.mean(torch.tensor(epoch_val_losses))
-            print(f'Validation loss: {mean_val_loss.item()}')
-            mean_epoch_val_losses.append(mean_val_loss.item())
-
+   
         # save model if better
-        if mean_val_loss < prev_val_loss:
-            prev_val_loss = mean_val_loss
-            torch.save(model.state_dict(), "../baseline-sam-run3.pth")
+        if mean_loss < prev_val_loss:
+            prev_val_loss = mean_loss
+            torch.save(model.state_dict(), "baseline-sam-run.pth")
         model.train()
 
 def main():
     # Load raw data files
     subset_size = 7145
-    train_filelist_xray = sorted(glob.glob('../QaTa-COV19/QaTa-COV19-v2/Train Set/Images/*.png'), key=numericalSort)
+    train_filelist_xray = sorted(glob.glob('../datasets/QaTa-COV19/QaTa-COV19-v2/Train Set/Images/*.png'), key=numericalSort)
     x_train = [process_data(file_xray) for file_xray in train_filelist_xray[:subset_size]]
-    masks = sorted(glob.glob('../QaTa-COV19/QaTa-COV19-v2/Train Set/Ground-truths/*.png'), key=numericalSort)
+    masks = sorted(glob.glob('../datasets/QaTa-COV19/QaTa-COV19-v2/Train Set/Ground-truths/*.png'), key=numericalSort)
     y_train = [process_data(m, mask=True) for m in masks[:subset_size]]
 
     # create dictionary image, mask dataset
@@ -190,12 +171,7 @@ def main():
 
     # Initialize Dataset and split into train and validation dataloaders
     dataset = SAMDataset(dataset=dataset, processor=processor)
-    dataset_size = len(dataset)
-    train_size = int(dataset_size * 0.8)  # 80% for training
-    validation_size = dataset_size - train_size  # 20% for validation
-    train_dataset, validation_dataset = random_split(dataset, [train_size, validation_size])
-    train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True)
-    validation_dataloader = DataLoader(validation_dataset, batch_size=4, shuffle=False)
+    train_dataloader = DataLoader(dataset, batch_size=8, shuffle=True)
     
     # Load baseline model
     model = SamModel.from_pretrained("facebook/sam-vit-base").to("cuda:0")
@@ -209,7 +185,7 @@ def main():
     # train model
     optimizer = Adam(model.parameters(), lr=1e-5, weight_decay=0)
     seg_loss = monai.losses.DiceCELoss(sigmoid=True, squared_pred=True, reduction='mean')
-    train_model(model, seg_loss, optimizer, train_dataloader, validation_dataloader, num_epochs=20)
+    train_model(model, seg_loss, optimizer, train_dataloader, num_epochs=20)
     
 if __name__ == "__main__":
     main()
