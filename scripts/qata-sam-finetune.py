@@ -170,32 +170,32 @@ def train_model(model, criterion, optimizer, train_dataloader, validation_datalo
         # save model if better
         if mean_val_loss < prev_val_loss:
             prev_val_loss = mean_val_loss
-            torch.save(model.state_dict(), "/home/../pvcvolume/sam_checkpoints/baseline-sam.pth")
+            torch.save(model.state_dict(), "../baseline-sam-run3.pth")
         model.train()
 
 def main():
     # Load raw data files
-    subset_size = 100
+    subset_size = 7145
     train_filelist_xray = sorted(glob.glob('../QaTa-COV19/QaTa-COV19-v2/Train Set/Images/*.png'), key=numericalSort)
     x_train = [process_data(file_xray) for file_xray in train_filelist_xray[:subset_size]]
     masks = sorted(glob.glob('../QaTa-COV19/QaTa-COV19-v2/Train Set/Ground-truths/*.png'), key=numericalSort)
     y_train = [process_data(m, mask=True) for m in masks[:subset_size]]
-    
+
     # create dictionary image, mask dataset
     dataset = create_dataset(x_train, y_train)
     print(dataset)
-    
+
     # Fine-tuning
     processor = SamProcessor.from_pretrained("facebook/sam-vit-base")
-    
+
     # Initialize Dataset and split into train and validation dataloaders
     dataset = SAMDataset(dataset=dataset, processor=processor)
     dataset_size = len(dataset)
     train_size = int(dataset_size * 0.8)  # 80% for training
     validation_size = dataset_size - train_size  # 20% for validation
     train_dataset, validation_dataset = random_split(dataset, [train_size, validation_size])
-    train_dataloader = DataLoader(train_dataset, batch_size=2, shuffle=True)
-    validation_dataloader = DataLoader(validation_dataset, batch_size=2, shuffle=False)
+    train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True)
+    validation_dataloader = DataLoader(validation_dataset, batch_size=4, shuffle=False)
     
     # Load baseline model
     model = SamModel.from_pretrained("facebook/sam-vit-base").to("cuda:0")
@@ -209,7 +209,7 @@ def main():
     # train model
     optimizer = Adam(model.parameters(), lr=1e-5, weight_decay=0)
     seg_loss = monai.losses.DiceCELoss(sigmoid=True, squared_pred=True, reduction='mean')
-    train_model(model, seg_loss, optimizer, train_dataloader, validation_dataloader, num_epochs=2)
+    train_model(model, seg_loss, optimizer, train_dataloader, validation_dataloader, num_epochs=20)
     
 if __name__ == "__main__":
     main()
