@@ -114,7 +114,7 @@ def apply_lora(model):
     model.vision_encoder.neck.conv1 = lora.Conv2d(768, 256, kernel_size=1, r=8)
     model.vision_encoder.neck.conv2 = lora.Conv2d(256, 256, kernel_size=1, r=8)
 
-def train_model(model, criterion, optimizer, train_dataloader, num_epochs=25):
+def train_model(model, criterion, optimizer, train_dataloader, num_epochs=25, log_file_path="../../../pvcvolume/training_log.txt"):
     mean_epoch_losses = []
     mean_epoch_val_losses = []
     prev_val_loss = np.inf
@@ -123,40 +123,46 @@ def train_model(model, criterion, optimizer, train_dataloader, num_epochs=25):
     model = nn.DataParallel(model, device_ids=[0, 1])
     model.to(device)
     model.train()
+    
+    with open(log_file_path, "w") as log_file:
+        for epoch in range(num_epochs):
+            epoch_losses = []
+            # Training phase
+            for batch in tqdm(train_dataloader):
+                # forward pass
+                outputs = model(pixel_values=batch["pixel_values"].to(device),
+                                  input_boxes=batch["input_boxes"].to(device),
+                                  multimask_output=False)
+                # compute loss
+                predicted_masks = outputs.pred_masks.squeeze(1)
+                ground_truth_masks = batch["ground_truth_mask"].float().to(device)
+                loss = criterion(predicted_masks, ground_truth_masks.unsqueeze(1))
+                # backward pass (compute gradients of parameters w.r.t. loss)
+                optimizer.zero_grad()
+                loss.backward()
+                # optimize
+                optimizer.step()
+                epoch_losses.append(loss.item())
+            
+            # log statistics
+            mean_loss = mean(epoch_losses)
+            mean_epoch_losses.append(mean_loss)
+           
+            log_file.write(f"Epoch: {epoch}\t")
+            log_file.write(f"Training loss: {mean_loss}\n")
 
-    for epoch in range(num_epochs):
-        epoch_losses = []
-        # Training phase
-        for batch in tqdm(train_dataloader):
-          # forward pass
-          outputs = model(pixel_values=batch["pixel_values"].to(device),
-                          input_boxes=batch["input_boxes"].to(device),
-                          multimask_output=False)
-          # compute loss
-          predicted_masks = outputs.pred_masks.squeeze(1)
-          ground_truth_masks = batch["ground_truth_mask"].float().to(device)
-          loss = criterion(predicted_masks, ground_truth_masks.unsqueeze(1))
-          # backward pass (compute gradients of parameters w.r.t. loss)
-          optimizer.zero_grad()
-          loss.backward()
-          # optimize
-          optimizer.step()
-          epoch_losses.append(loss.item())
-        # print statistics
-        print(f'EPOCH: {epoch}')
-        mean_loss = mean(epoch_losses)
-        print(f'Training loss: {mean_loss}')
-        mean_epoch_losses.append(mean_loss)
-   
-        # save model if better
-        if mean_loss < prev_val_loss:
-            prev_val_loss = mean_loss
-            torch.save(model.state_dict(), "../../../pvcvolume/baseline-sam-run.pth")
-        model.train()
+            # save model if better
+            if mean_loss < prev_val_loss:
+                prev_val_loss = mean_loss
+                torch.save(model.state_dict(), "../../../pvcvolume/baseline-sam-run.pth")
+            model.train()
+
+            print(f"Epoch: {epoch}")
+            print(f"Training loss: {mean_loss}")
 
 def main():
     # Load raw data files
-    subset_size = 100
+    subset_size = 7145 
     train_filelist_xray = sorted(glob.glob('../QaTa-COV19/QaTa-COV19-v2/Train Set/Images/*.png'), key=numericalSort)
     x_train = [process_data(file_xray) for file_xray in train_filelist_xray[:subset_size]]
     masks = sorted(glob.glob('../QaTa-COV19/QaTa-COV19-v2/Train Set/Ground-truths/*.png'), key=numericalSort)
@@ -185,7 +191,7 @@ def main():
     # train model
     optimizer = Adam(model.parameters(), lr=1e-5, weight_decay=0)
     seg_loss = monai.losses.DiceCELoss(sigmoid=True, squared_pred=True, reduction='mean')
-    train_model(model, seg_loss, optimizer, train_dataloader, num_epochs=2)
+    train_model(model, seg_loss, optimizer, train_dataloader, num_epochs=20)
     
 if __name__ == "__main__":
     main()
