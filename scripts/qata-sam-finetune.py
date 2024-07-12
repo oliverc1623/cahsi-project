@@ -115,7 +115,7 @@ def apply_lora(model):
     model.vision_encoder.neck.conv1 = lora.Conv2d(768, 256, kernel_size=1, r=8)
     model.vision_encoder.neck.conv2 = lora.Conv2d(256, 256, kernel_size=1, r=8)
 
-def train_model(model, criterion, optimizer, train_dataloader, num_epochs=25, log_file_path="../../../pvcvolume/training_log.txt"):
+def train_model(model, criterion, optimizer, train_dataloader, num_epochs=25, log_file_path="../../pvcvolume/training_log.txt"):
     mean_epoch_losses = []
     mean_epoch_val_losses = []
     prev_val_loss = np.inf
@@ -155,17 +155,19 @@ def train_model(model, criterion, optimizer, train_dataloader, num_epochs=25, lo
             # save model if better
             if mean_loss < prev_val_loss:
                 prev_val_loss = mean_loss
-                torch.save(model.state_dict(), "../../../pvcvolume/baseline-sam-run.pth")
+                torch.save(model.state_dict(), "../../pvcvolume/baseline-sam-run.pth")
             model.train()
 
             print(f"Epoch: {epoch}")
             print(f"Training loss: {mean_loss}")
 
 def main(subset_size, num_epochs):
+    print(f"subset size val, type: {subset_size, type(subset_size)}")
+    print(f"subset size val, type: {num_epochs, type(num_epochs)}")
     # Load raw data files
-    train_filelist_xray = sorted(glob.glob('../../QaTa-COV19/QaTa-COV19-v2/Train Set/Images/*.png'), key=numericalSort)
+    train_filelist_xray = sorted(glob.glob('../../pvcvolume/QaTa-COV19/QaTa-COV19-v2/Train Set/Images/*.png'), key=numericalSort)
     x_train = [process_data(file_xray) for file_xray in train_filelist_xray[:subset_size]]
-    masks = sorted(glob.glob('../../QaTa-COV19/QaTa-COV19-v2/Train Set/Ground-truths/*.png'), key=numericalSort)
+    masks = sorted(glob.glob('../../pvcvolume/QaTa-COV19/QaTa-COV19-v2/Train Set/Ground-truths/*.png'), key=numericalSort)
     y_train = [process_data(m, mask=True) for m in masks[:subset_size]]
 
     # create dictionary image, mask dataset
