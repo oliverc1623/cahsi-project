@@ -163,9 +163,9 @@ def train_model(model, criterion, optimizer, train_dataloader, num_epochs=25, lo
 
 def main(subset_size, num_epochs):
     # Load raw data files
-    train_filelist_xray = sorted(glob.glob('../QaTa-COV19/QaTa-COV19-v2/Train Set/Images/*.png'), key=numericalSort)
+    train_filelist_xray = sorted(glob.glob('../../QaTa-COV19/QaTa-COV19-v2/Train Set/Images/*.png'), key=numericalSort)
     x_train = [process_data(file_xray) for file_xray in train_filelist_xray[:subset_size]]
-    masks = sorted(glob.glob('../QaTa-COV19/QaTa-COV19-v2/Train Set/Ground-truths/*.png'), key=numericalSort)
+    masks = sorted(glob.glob('../../QaTa-COV19/QaTa-COV19-v2/Train Set/Ground-truths/*.png'), key=numericalSort)
     y_train = [process_data(m, mask=True) for m in masks[:subset_size]]
 
     # create dictionary image, mask dataset
