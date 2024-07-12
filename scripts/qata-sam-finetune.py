@@ -121,7 +121,7 @@ def train_model(model, criterion, optimizer, train_dataloader, num_epochs=25, lo
     prev_val_loss = np.inf
     
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = nn.DataParallel(model, device_ids=[0, 1, 2, 3, 4, 5])
+    model = nn.DataParallel(model, device_ids=[0, 1])
     model.to(device)
     model.train()
     
