@@ -1,3 +1,4 @@
+import argparse
 import re
 import glob
 import numpy as np
@@ -23,6 +24,7 @@ import loralib as lora
 from tqdm import tqdm
 from statistics import mean
 import monai
+
 numbers = re.compile(r'(\d+)')
 
 def numericalSort(value):
@@ -32,8 +34,7 @@ def numericalSort(value):
 
 def create_dataset(images, labels):
     print("Creating Dataset from dict")
-    dataset = datasets.Dataset.from_dict({"image": images,
-                                "label": labels})
+    dataset = datasets.Dataset.from_dict({"image": images, "label": labels})
     return dataset
 
 def process_data(image_file, mask=False):
@@ -70,20 +71,20 @@ def get_bounding_box(ground_truth_map):
     return bbox
 
 class SAMDataset(Dataset):
-  def __init__(self, dataset, processor):
-    self.dataset = dataset
-    self.processor = processor
-  def __len__(self):
-    return len(self.dataset)
-  def __getitem__(self, idx):
-    item = self.dataset[idx]
-    image = item["image"]
-    ground_truth_mask = np.array(item["label"])
-    prompt = get_bounding_box(ground_truth_mask)
-    inputs = self.processor(image, input_boxes=[[prompt]], return_tensors="pt")
-    inputs = {k:v.squeeze(0) for k,v in inputs.items()}
-    inputs["ground_truth_mask"] = ground_truth_mask
-    return inputs
+    def __init__(self, dataset, processor):
+        self.dataset = dataset
+        self.processor = processor
+    def __len__(self):
+        return len(self.dataset)
+    def __getitem__(self, idx):
+        item = self.dataset[idx]
+        image = item["image"]
+        ground_truth_mask = np.array(item["label"])
+        prompt = get_bounding_box(ground_truth_mask)
+        inputs = self.processor(image, input_boxes=[[prompt]], return_tensors="pt")
+        inputs = {k:v.squeeze(0) for k,v in inputs.items()}
+        inputs["ground_truth_mask"] = ground_truth_mask
+        return inputs
 
 def apply_lora(model):
     # Mask decoder
@@ -160,9 +161,8 @@ def train_model(model, criterion, optimizer, train_dataloader, num_epochs=25, lo
             print(f"Epoch: {epoch}")
             print(f"Training loss: {mean_loss}")
 
-def main():
+def main(subset_size, num_epochs):
     # Load raw data files
-    subset_size = 7145 
     train_filelist_xray = sorted(glob.glob('../QaTa-COV19/QaTa-COV19-v2/Train Set/Images/*.png'), key=numericalSort)
     x_train = [process_data(file_xray) for file_xray in train_filelist_xray[:subset_size]]
     masks = sorted(glob.glob('../QaTa-COV19/QaTa-COV19-v2/Train Set/Ground-truths/*.png'), key=numericalSort)
@@ -191,7 +191,11 @@ def main():
     # train model
     optimizer = Adam(model.parameters(), lr=1e-5, weight_decay=0)
     seg_loss = monai.losses.DiceCELoss(sigmoid=True, squared_pred=True, reduction='mean')
-    train_model(model, seg_loss, optimizer, train_dataloader, num_epochs=20)
+    train_model(model, seg_loss, optimizer, train_dataloader, num_epochs=num_epochs)
     
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Train SAM Model")
+    parser.add_argument("--subset_size", type=int, default=7145, help="Size of the dataset subset to use for training")
+    parser.add_argument("--num_epochs", type=int, default=25, help="Number of epochs for training")
+    args = parser.parse_args()
+    main(args.subset_size, args.num_epochs)
