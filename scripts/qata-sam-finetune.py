@@ -191,7 +191,7 @@ def main(subset_size, num_epochs):
     print(f"SAM total params: {sam_total_params}")
     
     # train model
-    optimizer = Adam(model.parameters(), lr=1e-5, weight_decay=0)
+    optimizer = Adam(model.parameters(), lr=4e-5, weight_decay=0)
     seg_loss = monai.losses.DiceCELoss(sigmoid=True, squared_pred=True, reduction='mean')
     train_model(model, seg_loss, optimizer, train_dataloader, num_epochs=num_epochs)
     
