@@ -36,20 +36,24 @@ def train_model(model, criterion, optimizer, train_dataloader, num_epochs=25):
         # Training phase
         for batch in tqdm(train_dataloader):
             # forward pass
+            print(batch["pixel_values"].shape)
             outputs = model(
                 pixel_values=batch["pixel_values"].to(device),
                 input_boxes=batch["input_boxes"].to(device),
                 multimask_output=False,
             )
+            print("passed forward pass")
             # compute loss
             predicted_masks = outputs.pred_masks.squeeze(1)
             ground_truth_masks = batch["ground_truth_mask"].float().to(device)
             loss = criterion(predicted_masks, ground_truth_masks.unsqueeze(1))
             # backward pass (compute gradients of parameters w.r.t. loss)
+            print("computing gradients")
             optimizer.zero_grad()
             loss.backward()
             # optimize
             optimizer.step()
+            print("optimizing")
             epoch_losses.append(loss.item())
 
         # log statistics
