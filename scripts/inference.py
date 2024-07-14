@@ -80,6 +80,13 @@ def main(subset_size):
 
     # Load baseline model
     model = SamModel.from_pretrained("facebook/sam-vit-base").to("cuda:0")
+    # only finetune vision encoder and mask decoder
+    for name, param in model.named_parameters():
+        if name.startswith("prompt_encoder"):
+            param.requires_grad_(False)
+    sam_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"SAM total params: {sam_total_params}")
+
     model.load_state_dict(torch.load("../../pvcvolume/baseline-sam-run.pth"))
 
     test_ious = []
