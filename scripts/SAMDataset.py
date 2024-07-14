@@ -33,9 +33,9 @@ def get_bounding_box(ground_truth_map):
     bbox = [x_min, y_min, x_max, y_max]
     return bbox
 
-class DataLoaderSegmentation(data.Dataset):
+class SAMDataset(data.Dataset):
     def __init__(self, folder_path, processor, image_transform=None, mask_transform=None):
-        super(DataLoaderSegmentation, self).__init__()
+        super(SAMDataset, self).__init__()
         self.img_files = glob.glob(os.path.join(folder_path,"Images","*.png"))
         self.mask_files = []
         for img_path in self.img_files:
@@ -80,9 +80,19 @@ mask_transform = transforms.Compose([
 
 processor = SamProcessor.from_pretrained("facebook/sam-vit-base")
                                          
-ds = DataLoaderSegmentation(
+ds = SAMDataset(
     folder_path = "../QaTa-COV19/QaTa-COV19-v2/Train Set/",
     processor = processor,
     image_transform = transform,
     mask_transform = mask_transform
 )
+
+# %%
+example = ds[0]
+for k,v in example.items():
+  print(k,v.shape)
+
+# %%
+train_dataloader = data.DataLoader(ds, batch_size=2, shuffle=True, num_workers=4)
+
+# %%
