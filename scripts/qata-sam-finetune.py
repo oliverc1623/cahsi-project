@@ -20,6 +20,7 @@ warnings.filterwarnings("ignore")
 
 
 def train_model(model, criterion, optimizer, train_dataloader, num_epochs=25):
+    print(f"Beginning training for {num_epochs} epochs")
     mean_epoch_losses = []
     prev_val_loss = np.inf
 
@@ -27,8 +28,10 @@ def train_model(model, criterion, optimizer, train_dataloader, num_epochs=25):
     # model = nn.DataParallel(model, device_ids=[0, 1, 2])
     model.to(device)
     model.train()
+    print("Model loaded on device")
 
     for epoch in range(num_epochs):
+        print(f"Epoch: {epoch}")
         epoch_losses = []
         # Training phase
         for batch in tqdm(train_dataloader):
@@ -55,6 +58,7 @@ def train_model(model, criterion, optimizer, train_dataloader, num_epochs=25):
 
         # save model if better
         if mean_loss < prev_val_loss:
+            print(f"Saving model with loss: {mean_loss}")
             prev_val_loss = mean_loss
             torch.save(model.state_dict(), "../../pvcvolume/baseline-sam-run.pth")
         model.train()
