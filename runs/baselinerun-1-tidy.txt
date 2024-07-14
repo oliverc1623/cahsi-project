@@ -1,0 +1,78 @@
+SAM total params: 93,729,252
+
+Epoch: 0
+Training loss: 0.22228164041635706
+
+Epoch: 1
+Training loss: 0.19089485539052578
+
+Epoch: 2
+Training loss: 0.17744808798235
+
+Epoch: 3
+Training loss: 0.16636326376523747
+
+Epoch: 4
+Training loss: 0.1564456793527542
+
+Epoch: 5
+Training loss: 0.1468151338165105
+
+Epoch: 6
+Training loss: 0.1356191769975677
+
+Epoch: 7
+Training loss: 0.12880725487733313
+
+Epoch: 8
+Training loss: 0.12109338251302973
+
+Epoch: 9
+Training loss: 0.11342851983454137
+
+Epoch: 10
+Training loss: 0.10772841273321535
+
+Epoch: 11
+Training loss: 0.10291344323664303
+
+Epoch: 12
+Training loss: 0.0966154050740353
+
+Epoch: 13
+Training loss: 0.0916836984222234
+
+Epoch: 14
+Training loss: 0.08763221646731999
+
+Epoch: 15
+Training loss: 0.08209133382794974
+
+Epoch: 16
+Training loss: 0.07823081974198487
+
+Epoch: 17
+Training loss: 0.07454704749970895
+
+Epoch: 18
+Training loss: 0.07048893471975588
+
+Epoch: 19
+Training loss: 0.06562301890312025
+
+Epoch: 20
+Training loss: 0.06341253925673247
+
+Epoch: 21
+Training loss: 0.06220709112883281
+
+Epoch: 22
+Training loss: 0.05695817273701864
+
+Epoch: 23
+Training loss: 0.0542747819592022
+
+Epoch: 24
+Training loss: 0.0539779147712443
+
+Average IoUs over 2113 test samples: 0.7876486066275731
