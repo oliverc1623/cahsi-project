@@ -23,7 +23,7 @@ def train_model(model, criterion, optimizer, train_dataloader, num_epochs=25):
     mean_epoch_losses = []
     prev_val_loss = np.inf
 
-    device = "cuda" if torch.backends.mps.is_available() else "cpu"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     model = nn.DataParallel(model, device_ids=[0, 1])
     model.to(device)
     model.train()
