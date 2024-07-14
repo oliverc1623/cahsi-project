@@ -65,35 +65,3 @@ class SAMDataset(data.Dataset):
 
     def __len__(self):
         return len(self.img_files)
-    
-#%%
-
-transform = transforms.Compose([
-        transforms.Resize((256, 256)),
-        transforms.ToTensor(),
-])
-
-mask_transform = transforms.Compose([
-    transforms.Resize((256, 256)),
-    transforms.ToTensor(),
-    transforms.Lambda(binarize_mask) 
-])
-
-processor = SamProcessor.from_pretrained("facebook/sam-vit-base")
-                                         
-ds = SAMDataset(
-    folder_path = "../QaTa-COV19/QaTa-COV19-v2/Train Set/",
-    processor = processor,
-    image_transform = transform,
-    mask_transform = mask_transform
-)
-
-# %%
-example = ds[0]
-for k,v in example.items():
-  print(k,v.shape)
-
-# %%
-train_dataloader = data.DataLoader(ds, batch_size=2, shuffle=True, num_workers=4)
-
-# %%
