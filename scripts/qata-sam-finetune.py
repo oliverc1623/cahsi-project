@@ -23,8 +23,8 @@ def train_model(model, criterion, optimizer, train_dataloader, num_epochs=25):
     mean_epoch_losses = []
     prev_val_loss = np.inf
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = nn.DataParallel(model, device_ids=[0, 1, 2])
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    # model = nn.DataParallel(model, device_ids=[0, 1, 2])
     model.to(device)
     model.train()
 
@@ -93,7 +93,7 @@ def main(subset_size, num_epochs):
 
     # Initialize Dataset and split into train and validation dataloaders
     train_dataloader = DataLoader(
-        sam_dataset, batch_size=8, shuffle=True, num_workers=4
+        sam_dataset, batch_size=4, shuffle=True, num_workers=4
     )
 
     # Load baseline model
