@@ -1,46 +1,25 @@
-import re
+import argparse
 import glob
-import numpy as np
-import PIL.Image
-import PIL
-from concurrent.futures import ThreadPoolExecutor, as_completed
-
-import torch
-from torch.nn.functional import threshold, normalize
-from torch.optim import Adam
-import torch.nn as nn
-from torch.utils.data import DataLoader, Dataset, random_split
-from torch.utils.data.sampler import SubsetRandomSampler
-
-from transformers import SamModel, SamConfig, SamProcessor
-import datasets
-import loralib as lora
-from tqdm import tqdm
+import os
+import re
+import warnings
 from statistics import mean
+
 import monai
-device = "cuda" if torch.cuda.is_available() else "cpu"
+import numpy as np
+import torch
+import torch.nn as nn
+import torchvision.transforms as transforms
+from SAMDataset import SAMDataset, binarize_mask
+from torch.optim import Adam
+from torch.utils.data import DataLoader, Subset
+from tqdm import tqdm
+from transformers import SamModel, SamProcessor
 
-numbers = re.compile(r'(\d+)')
-def numericalSort(value):
-    parts = numbers.split(value)
-    parts[1::2] = map(int, parts[1::2])
-    return parts
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def create_dataset(images, labels):
-    print("Creating Dataset from dict")
-    dataset = datasets.Dataset.from_dict({"image": images,
-                                "label": labels})
-    return dataset
+warnings.filterwarnings("ignore")
 
-def process_data(image_file, mask=False):
-    image = PIL.Image.open(image_file)
-    if not mask:
-        image = image.convert("RGB")
-    else:
-        image = image.convert("L")
-        image = image.point(lambda p: p > 0 and 1)
-    image = image.resize((256, 256), PIL.Image.BILINEAR)
-    return image
 
 def get_bounding_box(ground_truth_map):
     # get bounding box from mask
@@ -58,93 +37,63 @@ def get_bounding_box(ground_truth_map):
     bbox = [x_min, y_min, x_max, y_max]
     return bbox
 
+
 def calculateIoU(gtMask, predMask):
     intersection = torch.sum(predMask * gtMask)
     union = torch.sum(predMask) + torch.sum(gtMask) - intersection
     if union == 0:
-        iou = float('nan')
+        iou = float("nan")
     else:
         iou = intersection / union
     return iou.item()
 
-class SAMDataset(Dataset):
-    def __init__(self, dataset, processor):
-        self.dataset = dataset
-        self.processor = processor
-    def __len__(self):
-        return len(self.dataset)
-    def __getitem__(self, idx):
-        item = self.dataset[idx]
-        image = item["image"]
-        ground_truth_mask = np.array(item["label"])
-        prompt = get_bounding_box(ground_truth_mask)
-        inputs = self.processor(image, input_boxes=[[prompt]], return_tensors="pt")
-        inputs = {k:v.squeeze(0) for k,v in inputs.items()}
-        inputs["ground_truth_mask"] = ground_truth_mask
-        return inputs
 
-def apply_lora(model):
-    # Mask decoder
-    for layer in model.mask_decoder.transformer.layers:
-        # self_attn
-        layer.self_attn.q_proj = lora.Linear(256, 256, r=8)
-        layer.self_attn.k_proj = lora.Linear(256, 256, r=8)
-        layer.self_attn.v_proj = lora.Linear(256, 256, r=8)
-        # cross attn token to img
-        layer.cross_attn_token_to_image.q_proj = lora.Linear(256, 128, r=8)
-        layer.cross_attn_token_to_image.k_proj = lora.Linear(256, 128, r=8)
-        layer.cross_attn_token_to_image.v_proj = lora.Linear(256, 128, r=8)
-        # mlp
-        layer.mlp.lin1 = lora.Linear(256, 2048, r=8)
-        layer.mlp.lin2 = lora.Linear(2048, 256, r=8)
-        # cross attn img to token
-        layer.cross_attn_image_to_token.q_proj = lora.Linear(256, 128, r=8)
-        layer.cross_attn_image_to_token.k_proj = lora.Linear(256, 128, r=8)
-        layer.cross_attn_image_to_token.v_proj = lora.Linear(256, 128, r=8)
-    model.mask_decoder.transformer.final_attn_token_to_image.q_proj = lora.Linear(256, 128, r=8)
-    model.mask_decoder.transformer.final_attn_token_to_image.k_proj = lora.Linear(256, 128, r=8)
-    model.mask_decoder.transformer.final_attn_token_to_image.v_proj = lora.Linear(256, 128, r=8)
-    # Vision Encoder
-    for layer in model.vision_encoder.layers:
-        layer.attn.qkv = lora.MergedLinear(768, 3*768, r=8, enable_lora=[True, True, True])
-        layer.mlp.lin1 = lora.Linear(768, 3072, r=8)
-        layer.mlp.lin2 = lora.Linear(3072, 768, r=8)
-    model.vision_encoder.neck.conv1 = lora.Conv2d(768, 256, kernel_size=1, r=8)
-    model.vision_encoder.neck.conv2 = lora.Conv2d(256, 256, kernel_size=1, r=8)
+def main(subset_size):
+    subset_indices = list(range(subset_size))
 
-def main():
-    ## Load Test Set
-    subset_size = 400
-    test_filelist_xray = sorted(glob.glob('../QaTa-COV19/QaTa-COV19-v2/Test Set/Images/*.png'))
-    x_test = [process_data(file_xray) for file_xray in test_filelist_xray[:subset_size]]
+    transform = transforms.Compose(
+        [
+            transforms.Resize((256, 256)),
+            transforms.ToTensor(),
+        ]
+    )
 
-    test_masks = sorted(glob.glob('../QaTa-COV19/QaTa-COV19-v2/Test Set/Ground-truths/*.png'))
-    y_test = [process_data(m, mask=True) for m in test_masks[:subset_size]]
+    mask_transform = transforms.Compose(
+        [
+            transforms.Resize((256, 256)),
+            transforms.ToTensor(),
+            transforms.Lambda(binarize_mask),
+        ]
+    )
 
-    test_dataset = create_dataset(x_test, y_test)
+    processor = SamProcessor.from_pretrained("facebook/sam-vit-base")
 
-    # Load model
-    model_config = SamConfig.from_pretrained("facebook/sam-vit-base")
-    processor = SamProcessor.from_pretrained("facebook/sam-vit-base") 
-    model = SamModel(config=model_config)
-    apply_lora(model)
-    model = nn.DataParallel(model, device_ids=[0, 1])
-    model.to(device)
-    model.load_state_dict(torch.load("../lora-sam.pth"))
+    sam_dataset = SAMDataset(
+        folder_path="../../pvcvolume/QaTa-COV19/QaTa-COV19-v2/Test Set/",
+        processor=processor,
+        image_transform=transform,
+        mask_transform=mask_transform,
+    )
+    sam_dataset = Subset(sam_dataset, subset_indices)
 
-    # Initialize Dataset and split into train and validation dataloaders
-    test_dataset = SAMDataset(dataset=test_dataset, processor=processor)
-    dataset_size = len(test_dataset)
-    test_dataloader = DataLoader(test_dataset, batch_size=4, shuffle=False, num_workers=8)
+    test_dataloader = DataLoader(sam_dataset, batch_size=8, shuffle=True, num_workers=4)
+
+    # Load baseline model
+    model = SamModel.from_pretrained("facebook/sam-vit-base").to("cuda:0")
+    model.load_state_dict(torch.load("../../pvcvolume/baseline-sam-run.pth"))
 
     test_ious = []
     model.eval()
     with torch.no_grad():
-        for indx, batch in enumerate(test_dataloader):  # Make sure to use your validation DataLoader
+        for indx, batch in enumerate(
+            test_dataloader
+        ):  # Make sure to use your validation DataLoader
             # forward pass
-            outputs = model(pixel_values=batch["pixel_values"].to(device),
-                            input_boxes=batch["input_boxes"].to(device),
-                            multimask_output=False)
+            outputs = model(
+                pixel_values=batch["pixel_values"].to(device),
+                input_boxes=batch["input_boxes"].to(device),
+                multimask_output=False,
+            )
             # compute loss
             predicted_masks = outputs.pred_masks.squeeze(1)
             ground_truth_masks = batch["ground_truth_mask"].float().to(device)
@@ -159,5 +108,14 @@ def main():
 
     print(f"Average IoUs over {subset_size} test samples: {mean(test_ious)}")
 
+
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Train SAM Model")
+    parser.add_argument(
+        "--subset_size",
+        type=int,
+        default=2113,
+        help="Size of the dataset subset to use for training",
+    )
+    args = parser.parse_args()
+    main(args.subset_size)
