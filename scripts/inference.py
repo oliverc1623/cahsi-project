@@ -80,6 +80,7 @@ def main(subset_size):
 
     # Load baseline model
     model = SamModel.from_pretrained("facebook/sam-vit-base").to("cuda:0")
+    model = nn.DataParallel(model, device_ids=[0, 1])
     # only finetune vision encoder and mask decoder
     for name, param in model.named_parameters():
         if name.startswith("prompt_encoder"):
