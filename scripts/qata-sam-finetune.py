@@ -1,24 +1,20 @@
-import os
-import glob
-import warnings
 import argparse
-import re
 import glob
-import numpy as np
-from tqdm import tqdm
+import os
+import re
+import warnings
 from statistics import mean
 
-from SAMDataset import SAMDataset, binarize_mask
-
-import torch
-from torch.utils.data import Subset
-import torch.nn as nn
-from torch.utils.data import DataLoader
-from torch.optim import Adam
-import torchvision.transforms as transforms
-from transformers import SamProcessor
-from transformers import SamModel
 import monai
+import numpy as np
+import torch
+import torch.nn as nn
+import torchvision.transforms as transforms
+from SAMDataset import SAMDataset, binarize_mask
+from torch.optim import Adam
+from torch.utils.data import DataLoader, Subset
+from tqdm import tqdm
+from transformers import SamModel, SamProcessor
 
 warnings.filterwarnings("ignore")
 
@@ -96,7 +92,9 @@ def main(subset_size, num_epochs):
     sam_dataset = Subset(sam_dataset, subset_indices)
 
     # Initialize Dataset and split into train and validation dataloaders
-    train_dataloader = DataLoader(sam_dataset, batch_size=8, shuffle=True, num_workers=4)
+    train_dataloader = DataLoader(
+        sam_dataset, batch_size=8, shuffle=True, num_workers=4
+    )
 
     # Load baseline model
     model = SamModel.from_pretrained("facebook/sam-vit-base").to("cuda:0")
