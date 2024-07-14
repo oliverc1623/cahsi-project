@@ -25,6 +25,7 @@ def train_model(model, criterion, optimizer, train_dataloader, num_epochs=25):
     prev_val_loss = np.inf
 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    print(f"Using device: {device}")
     # model = nn.DataParallel(model, device_ids=[0, 1, 2])
     model.to(device)
     model.train()
@@ -36,7 +37,7 @@ def train_model(model, criterion, optimizer, train_dataloader, num_epochs=25):
         # Training phase
         for batch in tqdm(train_dataloader):
             # forward pass
-            print(batch["pixel_values"].shape)
+            print("in batch")
             outputs = model(
                 pixel_values=batch["pixel_values"].to(device),
                 input_boxes=batch["input_boxes"].to(device),
