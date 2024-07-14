@@ -34,6 +34,7 @@ def get_bounding_box(ground_truth_map):
     return bbox
 
 class SAMDataset(data.Dataset):
+    """Dataset class for SAM model """
     def __init__(self, folder_path, processor, image_transform=None, mask_transform=None):
         super(SAMDataset, self).__init__()
         self.img_files = glob.glob(os.path.join(folder_path,"Images","*.png"))
