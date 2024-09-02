@@ -88,7 +88,7 @@ def main(subset_size):
     sam_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"SAM total params: {sam_total_params}")
 
-    model.load_state_dict(torch.load("../../pvcvolume/baseline-sam-run.pth"))
+    model.load_state_dict(torch.load("../../pvcvolume/lora-sam-run.pth"))
 
     test_ious = []
     model.eval()
